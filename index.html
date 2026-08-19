@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Генератор счетов для курсов</title>
+  <style>
+    :root {
+      --soft-pink: #fff0f3;
+      --soft-purple: #f3f0ff;
+      --accent-color: #008080;
+      --deep-accent: #800000;
+      --text-main: #4a4a4a;
+      --white: #ffffff;
+      --button-grad: linear-gradient(to top, #800000 0%, #d63031 100%);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    body { background-color: var(--soft-pink); color: var(--text-main); padding: 20px; }
+    
+    .container { max-width: 1000px; margin: 0 auto; }
+    .card { background: var(--white); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+    
+    h1, h2, h3 { color: var(--deep-accent); margin-bottom: 12px; }
+    
+    .btn { background: var(--accent-color); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.9rem; margin-right: 8px; margin-bottom: 8px; }
+    .btn:hover { opacity: 0.9; }
+    .btn-grad { background: var(--button-grad); }
+    .btn-outline { background: transparent; border: 1px solid var(--accent-color); color: var(--accent-color); }
+    
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; font-size: 0.85rem; margin-bottom: 4px; font-weight: 600; }
+    .form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 6px; }
+    
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .modal { background: var(--white); padding: 25px; border-radius: 12px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; }
+    
+    .job-selector { display: flex; gap: 10px; align-items: center; margin-bottom: 20px; }
+    .job-selector select { flex: 1; padding: 10px; border-radius: 6px; border: 1px solid #ccc; }
+    
+    .item-box { background: var(--soft-purple); border-left: 4px solid var(--accent-color); padding: 12px; margin-bottom: 10px; border-radius: 4px; }
+    .item-title { font-weight: bold; color: var(--deep-accent); display: flex; justify-content: space-between; }
+    
+    .invoice-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+    .invoice-table th, .invoice-table td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 0.9rem; }
+    .invoice-table th { background-color: var(--soft-purple); }
+    .total-row { font-weight: bold; background-color: var(--soft-pink); }
+    
+    .hidden { display: none !important; }
+    .badge { background: #e0e0e0; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; }
+    .badge-success { background: #d4edda; color: #155724; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="card" style="display: flex; justify-content: space-between; align-items: center;">
+    <h1>Конструктор счетов курсов</h1>
+    <button class="btn btn-outline" onclick="openRatesModal()">⚙️ Настройка цен</button>
+  </div>
+
+  <!-- Селектор Должностей -->
+  <div class="card">
+    <div class="job-selector">
+      <select id="job-select" onchange="switchJob()"></select>
+      <button class="btn btn-grad" onclick="addNewJob()">+ Добавить должность</button>
+    </div>
+  </div>
+
+  <!-- Рабочая область должности -->
+  <div id="job-content" class="hidden">
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <h2 id="current-job-title">Должность</h2>
+        <div>
+          <button class="btn" onclick="openLessonModal()">+ Добавить урок</button>
+          <button class="btn btn-outline" onclick="openTestModal()">+ Добавить итоговый тест</button>
+        </div>
+      </div>
+
+      <div id="items-list"></div>
+
+      <div style="margin-top: 20px; text-align: right;">
+        <button class="btn btn-grad" style="padding: 12px 24px; font-size: 1rem;" onclick="generateInvoice()">🧾 Сформировать счёт</button>
+      </div>
+    </div>
+
+    <!-- Область Счёта -->
+    <div id="invoice-card" class="card hidden">
+      <h2>Сформированный счёт</h2>
+      <div id="invoice-details"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Модалка цен -->
+<div id="rates-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <h2>Установка базовых расценок</h2>
+    <p style="font-size: 0.85rem; margin-bottom: 15px; color: #666;">Укажите стоимость одной единицы для каждого типа материалов (в рублях).</p>
+    <form id="rates-form" onsubmit="saveRates(event)">
+      <div class="grid-2">
+        <div class="form-group"><label>1 Подводка (текст)</label><input type="number" id="rate-lead" required></div>
+        <div class="form-group"><label>1 Видео</label><input type="number" id="rate-video" required></div>
+        <div class="form-group"><label>1 Слайд презентации</label><input type="number" id="rate-slide" required></div>
+        <div class="form-group"><label>1 PDF-документ</label><input type="number" id="rate-pdf" required></div>
+        <div class="form-group"><label>1 Вопрос в мини-тесте</label><input type="number" id="rate-mini-q" required></div>
+        <div class="form-group"><label>1 Вопрос в итоговом тесте</label><input type="number" id="rate-final-q" required></div>
+      </div>
+      <button type="submit" class="btn btn-grad" style="width: 100%; margin-top: 15px;">Сохранить расценки</button>
+    </form>
+  </div>
+</div>
+
+<!-- Модалка добавления урока -->
+<div id="lesson-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <h2>Добавление урока</h2>
+    <form onsubmit="saveLesson(event)">
+      <div class="grid-3">
+        <div class="form-group"><label>Ступень</label><input type="text" id="l-stage" placeholder="1" required></div>
+        <div class="form-group"><label>Модуль</label><input type="text" id="l-module" placeholder="1" required></div>
+        <div class="form-group"><label>Номер/Название урока</label><input type="text" id="l-title" placeholder="Урок 1" required></div>
+      </div>
+
+      <hr style="margin: 15px 0; border: none; border-top: 1px solid #eee;">
+      <h3>Состав урока</h3>
+
+      <div class="grid-2">
+        <div class="form-group"><label>Кол-во подводок</label><input type="number" id="l-leads" value="0" min="0"></div>
+        <div class="form-group"><label>Кол-во видео</label><input type="number" id="l-videos" value="0" min="0"></div>
+        <div class="form-group"><label>Кол-во PDF</label><input type="number" id="l-pdfs" value="0" min="0"></div>
+        <div class="form-group"><label>Слайдов в презентациях (всего)</label><input type="number" id="l-slides" value="0" min="0"></div>
+      </div>
+
+      <div class="form-group">
+        <label>Вопросов в мини-тесте (0 если нет)</label>
+        <input type="number" id="l-mini-q" value="0" min="0">
+      </div>
+
+      <hr style="margin: 15px 0; border: none; border-top: 1px solid #eee;">
+      <h3>Непредвиденная / Кастомная задача</h3>
+      <div class="grid-2">
+        <div class="form-group"><label>Описание задачи</label><input type="text" id="l-custom-desc" placeholder="Напр. Настройка интерактивного тренажера"></div>
+        <div class="form-group"><label>Стоимость (руб)</label><input type="number" id="l-custom-price" value="0" min="0"></div>
+      </div>
+
+      <button type="submit" class="btn btn-grad" style="width: 100%; margin-top: 15px;">Урок готов (Сохранить)</button>
+      <button type="button" class="btn btn-outline" style="width: 100%; margin-top: 5px;" onclick="closeModals()">Отмена</button>
+    </form>
+  </div>
+</div>
+
+<!-- Модалка добавления итогового теста -->
+<div id="test-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <h2>Добавление итогового теста</h2>
+    <form onsubmit="saveTest(event)">
+      <div class="grid-2">
+        <div class="form-group"><label>Ступень</label><input type="text" id="t-stage" placeholder="1" required></div>
+        <div class="form-group"><label>Модуль</label><input type="text" id="t-module" placeholder="1" required></div>
+      </div>
+      <div class="form-group"><label>Название теста</label><input type="text" id="t-title" placeholder="Итоговый тест модуля 1" required></div>
+      <div class="form-group"><label>Количество вопросов</label><input type="number" id="t-questions" value="0" min="1" required></div>
+
+      <hr style="margin: 15px 0; border: none; border-top: 1px solid #eee;">
+      <h3>Непредвиденная / Кастомная задача</h3>
+      <div class="grid-2">
+        <div class="form-group"><label>Описание задачи</label><input type="text" id="t-custom-desc" placeholder="Описание задачи"></div>
+        <div class="form-group"><label>Стоимость (руб)</label><input type="number" id="t-custom-price" value="0" min="0"></div>
+      </div>
+
+      <button type="submit" class="btn btn-grad" style="width: 100%; margin-top: 15px;">Сохранить тест</button>
+      <button type="button" class="btn btn-outline" style="width: 100%; margin-top: 5px;" onclick="closeModals()">Отмена</button>
+    </form>
+  </div>
+</div>
+
+<script>
+  let store = {
+    rates: JSON.parse(localStorage.getItem('course_rates')) || null,
+    jobs: JSON.parse(localStorage.getItem('course_jobs')) || [],
+    currentJobId: null
+  };
+
+  window.onload = function() {
+    if (!store.rates) {
+      openRatesModal();
+    }
+    renderJobsSelect();
+  };
+
+  function saveData() {
+    localStorage.setItem('course_rates', JSON.stringify(store.rates));
+    localStorage.setItem('course_jobs', JSON.stringify(store.jobs));
+  }
+
+  function openRatesModal() {
+    if (store.rates) {
+      document.getElementById('rate-lead').value = store.rates.lead || 0;
+      document.getElementById('rate-video').value = store.rates.video || 0;
+      document.getElementById('rate-slide').value = store.rates.slide || 0;
+      document.getElementById('rate-pdf').value = store.rates.pdf || 0;
+      document.getElementById('rate-mini-q').value = store.rates.miniQ || 0;
+      document.getElementById('rate-final-q').value = store.rates.finalQ || 0;
+    }
+    document.getElementById('rates-modal').classList.remove('hidden');
+  }
+
+  function saveRates(e) {
+    e.preventDefault();
+    store.rates = {
+      lead: parseFloat(document.getElementById('rate-lead').value) || 0,
+      video: parseFloat(document.getElementById('rate-video').value) || 0,
+      slide: parseFloat(document.getElementById('rate-slide').value) || 0,
+      pdf: parseFloat(document.getElementById('rate-pdf').value) || 0,
+      miniQ: parseFloat(document.getElementById('rate-mini-q').value) || 0,
+      finalQ: parseFloat(document.getElementById('rate-final-q').value) || 0,
+    };
+    saveData();
+    closeModals();
+    if (store.currentJobId) renderItems();
+  }
+
+  function closeModals() {
+    document.querySelectorAll('.modal-overlay').forEach(m => m.classList.add('hidden'));
+  }
+
+  function addNewJob() {
+    const title = prompt("Введите название должности (например: Менеджер по продажам):");
+    if (!title) return;
+    const newJob = { id: Date.now(), title: title, items: [] };
+    store.jobs.push(newJob);
+    store.currentJobId = newJob.id;
+    saveData();
+    renderJobsSelect();
+  }
+
+  function renderJobsSelect() {
+    const select = document.getElementById('job-select');
+    select.innerHTML = '<option value="">-- Выберите должность --</option>';
+    store.jobs.forEach(j => {
+      const opt = document.createElement('option');
+      opt.value = j.id;
+      opt.innerText = j.title;
+      if (j.id === store.currentJobId) opt.selected = true;
+      select.appendChild(opt);
+    });
+    switchJob();
+  }
+
+  function switchJob() {
+    const val = document.getElementById('job-select').value;
+    store.currentJobId = val ? parseInt(val) : null;
+    const content = document.getElementById('job-content');
+    
+    if (store.currentJobId) {
+      const job = store.jobs.find(j => j.id === store.currentJobId);
+      document.getElementById('current-job-title').innerText = job.title;
+      content.classList.remove('hidden');
+      document.getElementById('invoice-card').classList.add('hidden');
+      renderItems();
+    } else {
+      content.classList.add('hidden');
+    }
+  }
+
+  function openLessonModal() { document.getElementById('lesson-modal').classList.remove('hidden'); }
+  function openTestModal() { document.getElementById('test-modal').classList.remove('hidden'); }
+
+  function saveLesson(e) {
+    e.preventDefault();
+    const job = store.jobs.find(j => j.id === store.currentJobId);
+    
+    const lesson = {
+      type: 'lesson',
+      stage: document.getElementById('l-stage').value,
+      module: document.getElementById('l-module').value,
+      title: document.getElementById('l-title').value,
+      leads: parseInt(document.getElementById('l-leads').value) || 0,
+      videos: parseInt(document.getElementById('l-videos').value) || 0,
+      pdfs: parseInt(document.getElementById('l-pdfs').value) || 0,
+      slides: parseInt(document.getElementById('l-slides').value) || 0,
+      miniQ: parseInt(document.getElementById('l-mini-q').value) || 0,
+      customDesc: document.getElementById('l-custom-desc').value.trim(),
+      customPrice: parseFloat(document.getElementById('l-custom-price').value) || 0,
+      status: 'Готов'
+    };
+
+    job.items.push(lesson);
+    saveData();
+    closeModals();
+    e.target.reset();
+    renderItems();
+  }
+
+  function saveTest(e) {
+    e.preventDefault();
+    const job = store.jobs.find(j => j.id === store.currentJobId);
+
+    const test = {
+      type: 'test',
+      stage: document.getElementById('t-stage').value,
+      module: document.getElementById('t-module').value,
+      title: document.getElementById('t-title').value,
+      questions: parseInt(document.getElementById('t-questions').value) || 0,
+      customDesc: document.getElementById('t-custom-desc').value.trim(),
+      customPrice: parseFloat(document.getElementById('t-custom-price').value) || 0,
+      status: 'Готов'
+    };
+
+    job.items.push(test);
+    saveData();
+    closeModals();
+    e.target.reset();
+    renderItems();
+  }
+
+  function renderItems() {
+    const list = document.getElementById('items-list');
+    list.innerHTML = '';
+    const job = store.jobs.find(j => j.id === store.currentJobId);
+
+    if (job.items.length === 0) {
+      list.innerHTML = '<p style="color: #888;">В этой должности пока нет добавленных уроков и тестов.</p>';
+      return;
+    }
+
+    job.items.forEach((item, idx) => {
+      const box = document.createElement('div');
+      box.className = 'item-box';
+      
+      let detailsHtml = '';
+      if (item.type === 'lesson') {
+        detailsHtml = `
+          Подводки: ${item.leads} | Видео: ${item.videos} | Слайды: ${item.slides} | PDF: ${item.pdfs} | Мини-тест (вопросов): ${item.miniQ}
+        `;
+      } else {
+        detailsHtml = `Итоговый тест (вопросов): ${item.questions}`;
+      }
+
+      if (item.customDesc) {
+        detailsHtml += ` | <i>Доп: ${item.customDesc} (${item.customPrice} руб.)</i>`;
+      }
+
+      box.innerHTML = `
+        <div class="item-title">
+          <span>Ступень ${item.stage} → Модуль ${item.module} → ${item.title}</span>
+          <span class="badge badge-success">${item.status}</span>
+        </div>
+        <div style="font-size: 0.85rem; margin-top: 5px;">${detailsHtml}</div>
+      `;
+      list.appendChild(box);
+    });
+  }
+
+  function generateInvoice() {
+    const job = store.jobs.find(j => j.id === store.currentJobId);
+    if (!job || job.items.length === 0) {
+      alert("Сначала добавьте хотя бы один урок или тест!");
+      return;
+    }
+
+    const rates = store.rates;
+    let grandTotal = 0;
+
+    let html = `
+      <p><b>Должность:</b> ${job.title}</p>
+      <table class="invoice-table">
+        <thead>
+          <tr>
+            <th>Элемент (Ступень / Модуль)</th>
+            <th>Состав работ</th>
+            <th>Расчет стоимости</th>
+            <th>Итого (руб)</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    job.items.forEach(item => {
+      let itemTotal = 0;
+      let composition = [];
+      let calcDetails = [];
+
+      if (item.type === 'lesson') {
+        if (item.leads > 0) {
+          let sum = item.leads * rates.lead;
+          itemTotal += sum;
+          composition.push(`Подводки: ${item.leads}`);
+          calcDetails.push(`${item.leads} × ${rates.lead}`);
+        }
+        if (item.videos > 0) {
+          let sum = item.videos * rates.video;
+          itemTotal += sum;
+          composition.push(`Видео: ${item.videos}`);
+          calcDetails.push(`${item.videos} × ${rates.video}`);
+        }
+        if (item.slides > 0) {
+          let sum = item.slides * rates.slide;
+          itemTotal += sum;
+          composition.push(`Слайды: ${item.slides}`);
+          calcDetails.push(`${item.slides} × ${rates.slide}`);
+        }
+        if (item.pdfs > 0) {
+          let sum = item.pdfs * rates.pdf;
+          itemTotal += sum;
+          composition.push(`PDF: ${item.pdfs}`);
+          calcDetails.push(`${item.pdfs} × ${rates.pdf}`);
+        }
+        if (item.miniQ > 0) {
+          let sum = item.miniQ * rates.miniQ;
+          itemTotal += sum;
+          composition.push(`Мини-тест (${item.miniQ} вопр.)`);
+          calcDetails.push(`${item.miniQ} вопр. × ${rates.miniQ}`);
+        }
+      } else if (item.type === 'test') {
+        let sum = item.questions * rates.finalQ;
+        itemTotal += sum;
+        composition.push(`Итоговый тест (${item.questions} вопр.)`);
+        calcDetails.push(`${item.questions} вопр. × ${rates.finalQ}`);
+      }
+
+      if (item.customDesc && item.customPrice > 0) {
+        itemTotal += item.customPrice;
+        composition.push(`Спец. задача: ${item.customDesc}`);
+        calcDetails.push(`Фикс: ${item.customPrice}`);
+      }
+
+      grandTotal += itemTotal;
+
+      html += `
+        <tr>
+          <td>Ступень ${item.stage}, Модуль ${item.module}<br><b>${item.title}</b></td>
+          <td>${composition.join('<br>')}</td>
+          <td>${calcDetails.join('<br>')}</td>
+          <td><b>${itemTotal.toLocaleString()} ₽</b></td>
+        </tr>
+      `;
+    });
+
+    html += `
+        <tr class="total-row">
+          <td colspan="3" style="text-align: right;">ОБЩАЯ СУММА К ОПЛАТЕ:</td>
+          <td>${grandTotal.toLocaleString()} ₽</td>
+        </tr>
+      </tbody>
+    </table>
+    `;
+
+    document.getElementById('invoice-details').innerHTML = html;
+    document.getElementById('invoice-card').classList.remove('hidden');
+    document.getElementById('invoice-card').scrollIntoView({ behavior: 'smooth' });
+  }
+</script>
+
+</body>
+</html>
