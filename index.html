@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Генератор счетов для курсов</title>
+
   <style>
     :root {
       --soft-pink: #fff0f3;
@@ -52,21 +53,26 @@
     .hidden { display: none !important; }
     .badge { background: #e0e0e0; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; }
     .badge-success { background: #d4edda; color: #155724; }
+    
+    #db-status { font-size: 0.8rem; color: var(--accent-color); font-weight: bold; }
   </style>
 </head>
 <body>
 
 <div class="container">
   <div class="card" style="display: flex; justify-content: space-between; align-items: center;">
-    <h1>Конструктор счетов курсов</h1>
-    <button class="btn btn-outline" onclick="openRatesModal()">⚙️ Настройка цен</button>
+    <div>
+      <h1>Конструктор счетов курсов</h1>
+      <span id="db-status">🔄 Подключение к БД diary-1c00d...</span>
+    </div>
+    <button class="btn btn-outline" id="btn-rates-modal">⚙️ Настройка цен</button>
   </div>
 
   <!-- Селектор Должностей -->
   <div class="card">
     <div class="job-selector">
-      <select id="job-select" onchange="switchJob()"></select>
-      <button class="btn btn-grad" onclick="addNewJob()">+ Добавить должность</button>
+      <select id="job-select"></select>
+      <button class="btn btn-grad" id="btn-add-job">+ Добавить должность</button>
     </div>
   </div>
 
@@ -76,15 +82,15 @@
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
         <h2 id="current-job-title">Должность</h2>
         <div>
-          <button class="btn" onclick="openLessonModal()">+ Добавить урок</button>
-          <button class="btn btn-outline" onclick="openTestModal()">+ Добавить итоговый тест</button>
+          <button class="btn" id="btn-open-lesson">+ Добавить урок</button>
+          <button class="btn btn-outline" id="btn-open-test">+ Добавить итоговый тест</button>
         </div>
       </div>
 
       <div id="items-list"></div>
 
       <div style="margin-top: 20px; text-align: right;">
-        <button class="btn btn-grad" style="padding: 12px 24px; font-size: 1rem;" onclick="generateInvoice()">🧾 Сформировать счёт</button>
+        <button class="btn btn-grad" style="padding: 12px 24px; font-size: 1rem;" id="btn-generate-invoice">🧾 Сформировать счёт</button>
       </div>
     </div>
 
@@ -101,7 +107,7 @@
   <div class="modal">
     <h2>Установка базовых расценок</h2>
     <p style="font-size: 0.85rem; margin-bottom: 15px; color: #666;">Укажите стоимость одной единицы для каждого типа материалов (в рублях).</p>
-    <form id="rates-form" onsubmit="saveRates(event)">
+    <form id="rates-form">
       <div class="grid-2">
         <div class="form-group"><label>1 Подводка (текст)</label><input type="number" id="rate-lead" required></div>
         <div class="form-group"><label>1 Видео</label><input type="number" id="rate-video" required></div>
@@ -119,7 +125,7 @@
 <div id="lesson-modal" class="modal-overlay hidden">
   <div class="modal">
     <h2>Добавление урока</h2>
-    <form onsubmit="saveLesson(event)">
+    <form id="lesson-form">
       <div class="grid-3">
         <div class="form-group"><label>Ступень</label><input type="text" id="l-stage" placeholder="1" required></div>
         <div class="form-group"><label>Модуль</label><input type="text" id="l-module" placeholder="1" required></div>
@@ -149,7 +155,7 @@
       </div>
 
       <button type="submit" class="btn btn-grad" style="width: 100%; margin-top: 15px;">Урок готов (Сохранить)</button>
-      <button type="button" class="btn btn-outline" style="width: 100%; margin-top: 5px;" onclick="closeModals()">Отмена</button>
+      <button type="button" class="btn btn-outline btn-close-modal" style="width: 100%; margin-top: 5px;">Отмена</button>
     </form>
   </div>
 </div>
@@ -158,7 +164,7 @@
 <div id="test-modal" class="modal-overlay hidden">
   <div class="modal">
     <h2>Добавление итогового теста</h2>
-    <form onsubmit="saveTest(event)">
+    <form id="test-form">
       <div class="grid-2">
         <div class="form-group"><label>Ступень</label><input type="text" id="t-stage" placeholder="1" required></div>
         <div class="form-group"><label>Модуль</label><input type="text" id="t-module" placeholder="1" required></div>
@@ -174,28 +180,65 @@
       </div>
 
       <button type="submit" class="btn btn-grad" style="width: 100%; margin-top: 15px;">Сохранить тест</button>
-      <button type="button" class="btn btn-outline" style="width: 100%; margin-top: 5px;" onclick="closeModals()">Отмена</button>
+      <button type="button" class="btn btn-outline btn-close-modal" style="width: 100%; margin-top: 5px;">Отмена</button>
     </form>
   </div>
 </div>
 
-<script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
+  import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAW9W3M4p5yHxfwN4lhOot3YWxFoPKciEA",
+    authDomain: "diary-1c00d.firebaseapp.com",
+    databaseURL: "https://diary-1c00d-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "diary-1c00d",
+    storageBucket: "diary-1c00d.firebasestorage.app",
+    messagingSenderId: "576706054131",
+    appId: "1:576706054131:web:c8a711d8d429a363dbb486"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
   let store = {
-    rates: JSON.parse(localStorage.getItem('course_rates')) || null,
-    jobs: JSON.parse(localStorage.getItem('course_jobs')) || [],
+    rates: null,
+    jobs: [],
     currentJobId: null
   };
 
-  window.onload = function() {
+  const dataRef = ref(db, 'course_builder_data');
+
+  onValue(dataRef, (snapshot) => {
+    const data = snapshot.val();
+    if (data) {
+      store.rates = data.rates || null;
+      store.jobs = data.jobs || [];
+    }
+    
+    document.getElementById('db-status').innerText = "🟢 Данные синхронизированы с БД (diary-1c00d)";
+    
     if (!store.rates) {
       openRatesModal();
     }
     renderJobsSelect();
-  };
+  }, (error) => {
+    document.getElementById('db-status').innerText = "🔴 Ошибка подключения к БД";
+    console.error(error);
+  });
 
   function saveData() {
-    localStorage.setItem('course_rates', JSON.stringify(store.rates));
-    localStorage.setItem('course_jobs', JSON.stringify(store.jobs));
+    document.getElementById('db-status').innerText = "⏳ Сохранение...";
+    set(dataRef, {
+      rates: store.rates,
+      jobs: store.jobs
+    }).then(() => {
+      document.getElementById('db-status').innerText = "🟢 Сохранено в БД";
+    }).catch((err) => {
+      document.getElementById('db-status').innerText = "🔴 Ошибка сохранения";
+      console.error(err);
+    });
   }
 
   function openRatesModal() {
@@ -208,21 +251,6 @@
       document.getElementById('rate-final-q').value = store.rates.finalQ || 0;
     }
     document.getElementById('rates-modal').classList.remove('hidden');
-  }
-
-  function saveRates(e) {
-    e.preventDefault();
-    store.rates = {
-      lead: parseFloat(document.getElementById('rate-lead').value) || 0,
-      video: parseFloat(document.getElementById('rate-video').value) || 0,
-      slide: parseFloat(document.getElementById('rate-slide').value) || 0,
-      pdf: parseFloat(document.getElementById('rate-pdf').value) || 0,
-      miniQ: parseFloat(document.getElementById('rate-mini-q').value) || 0,
-      finalQ: parseFloat(document.getElementById('rate-final-q').value) || 0,
-    };
-    saveData();
-    closeModals();
-    if (store.currentJobId) renderItems();
   }
 
   function closeModals() {
@@ -259,64 +287,15 @@
     
     if (store.currentJobId) {
       const job = store.jobs.find(j => j.id === store.currentJobId);
-      document.getElementById('current-job-title').innerText = job.title;
-      content.classList.remove('hidden');
-      document.getElementById('invoice-card').classList.add('hidden');
-      renderItems();
+      if (job) {
+        document.getElementById('current-job-title').innerText = job.title;
+        content.classList.remove('hidden');
+        document.getElementById('invoice-card').classList.add('hidden');
+        renderItems();
+      }
     } else {
       content.classList.add('hidden');
     }
-  }
-
-  function openLessonModal() { document.getElementById('lesson-modal').classList.remove('hidden'); }
-  function openTestModal() { document.getElementById('test-modal').classList.remove('hidden'); }
-
-  function saveLesson(e) {
-    e.preventDefault();
-    const job = store.jobs.find(j => j.id === store.currentJobId);
-    
-    const lesson = {
-      type: 'lesson',
-      stage: document.getElementById('l-stage').value,
-      module: document.getElementById('l-module').value,
-      title: document.getElementById('l-title').value,
-      leads: parseInt(document.getElementById('l-leads').value) || 0,
-      videos: parseInt(document.getElementById('l-videos').value) || 0,
-      pdfs: parseInt(document.getElementById('l-pdfs').value) || 0,
-      slides: parseInt(document.getElementById('l-slides').value) || 0,
-      miniQ: parseInt(document.getElementById('l-mini-q').value) || 0,
-      customDesc: document.getElementById('l-custom-desc').value.trim(),
-      customPrice: parseFloat(document.getElementById('l-custom-price').value) || 0,
-      status: 'Готов'
-    };
-
-    job.items.push(lesson);
-    saveData();
-    closeModals();
-    e.target.reset();
-    renderItems();
-  }
-
-  function saveTest(e) {
-    e.preventDefault();
-    const job = store.jobs.find(j => j.id === store.currentJobId);
-
-    const test = {
-      type: 'test',
-      stage: document.getElementById('t-stage').value,
-      module: document.getElementById('t-module').value,
-      title: document.getElementById('t-title').value,
-      questions: parseInt(document.getElementById('t-questions').value) || 0,
-      customDesc: document.getElementById('t-custom-desc').value.trim(),
-      customPrice: parseFloat(document.getElementById('t-custom-price').value) || 0,
-      status: 'Готов'
-    };
-
-    job.items.push(test);
-    saveData();
-    closeModals();
-    e.target.reset();
-    renderItems();
   }
 
   function renderItems() {
@@ -324,12 +303,12 @@
     list.innerHTML = '';
     const job = store.jobs.find(j => j.id === store.currentJobId);
 
-    if (job.items.length === 0) {
+    if (!job || !job.items || job.items.length === 0) {
       list.innerHTML = '<p style="color: #888;">В этой должности пока нет добавленных уроков и тестов.</p>';
       return;
     }
 
-    job.items.forEach((item, idx) => {
+    job.items.forEach((item) => {
       const box = document.createElement('div');
       box.className = 'item-box';
       
@@ -359,7 +338,7 @@
 
   function generateInvoice() {
     const job = store.jobs.find(j => j.id === store.currentJobId);
-    if (!job || job.items.length === 0) {
+    if (!job || !job.items || job.items.length === 0) {
       alert("Сначала добавьте хотя бы один урок или тест!");
       return;
     }
@@ -455,6 +434,81 @@
     document.getElementById('invoice-card').classList.remove('hidden');
     document.getElementById('invoice-card').scrollIntoView({ behavior: 'smooth' });
   }
+
+  // Привязка событий элементов
+  document.getElementById('btn-rates-modal').onclick = openRatesModal;
+  document.getElementById('btn-add-job').onclick = addNewJob;
+  document.getElementById('job-select').onchange = switchJob;
+  document.getElementById('btn-open-lesson').onclick = () => document.getElementById('lesson-modal').classList.remove('hidden');
+  document.getElementById('btn-open-test').onclick = () => document.getElementById('test-modal').classList.remove('hidden');
+  document.getElementById('btn-generate-invoice').onclick = generateInvoice;
+
+  document.querySelectorAll('.btn-close-modal').forEach(btn => btn.onclick = closeModals);
+
+  document.getElementById('rates-form').onsubmit = (e) => {
+    e.preventDefault();
+    store.rates = {
+      lead: parseFloat(document.getElementById('rate-lead').value) || 0,
+      video: parseFloat(document.getElementById('rate-video').value) || 0,
+      slide: parseFloat(document.getElementById('rate-slide').value) || 0,
+      pdf: parseFloat(document.getElementById('rate-pdf').value) || 0,
+      miniQ: parseFloat(document.getElementById('rate-mini-q').value) || 0,
+      finalQ: parseFloat(document.getElementById('rate-final-q').value) || 0,
+    };
+    saveData();
+    closeModals();
+    if (store.currentJobId) renderItems();
+  };
+
+  document.getElementById('lesson-form').onsubmit = (e) => {
+    e.preventDefault();
+    const job = store.jobs.find(j => j.id === store.currentJobId);
+    
+    const lesson = {
+      type: 'lesson',
+      stage: document.getElementById('l-stage').value,
+      module: document.getElementById('l-module').value,
+      title: document.getElementById('l-title').value,
+      leads: parseInt(document.getElementById('l-leads').value) || 0,
+      videos: parseInt(document.getElementById('l-videos').value) || 0,
+      pdfs: parseInt(document.getElementById('l-pdfs').value) || 0,
+      slides: parseInt(document.getElementById('l-slides').value) || 0,
+      miniQ: parseInt(document.getElementById('l-mini-q').value) || 0,
+      customDesc: document.getElementById('l-custom-desc').value.trim(),
+      customPrice: parseFloat(document.getElementById('l-custom-price').value) || 0,
+      status: 'Готов'
+    };
+
+    if (!job.items) job.items = [];
+    job.items.push(lesson);
+    saveData();
+    closeModals();
+    e.target.reset();
+    renderItems();
+  };
+
+  document.getElementById('test-form').onsubmit = (e) => {
+    e.preventDefault();
+    const job = store.jobs.find(j => j.id === store.currentJobId);
+
+    const test = {
+      type: 'test',
+      stage: document.getElementById('t-stage').value,
+      module: document.getElementById('t-module').value,
+      title: document.getElementById('t-title').value,
+      questions: parseInt(document.getElementById('t-questions').value) || 0,
+      customDesc: document.getElementById('t-custom-desc').value.trim(),
+      customPrice: parseFloat(document.getElementById('t-custom-price').value) || 0,
+      status: 'Готов'
+    };
+
+    if (!job.items) job.items = [];
+    job.items.push(test);
+    saveData();
+    closeModals();
+    e.target.reset();
+    renderItems();
+  };
 </script>
 
 </body>
