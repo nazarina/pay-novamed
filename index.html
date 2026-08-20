@@ -268,19 +268,26 @@
   onValue(dataRef, (snapshot) => {
     const data = snapshot.val();
     if (data) {
+      // 1. Обновляем локальный объект данными из базы
       store.rates = Object.assign({ lead: 0, video: 0, slide: 0, pdf: 0, miniQ: 0, finalQ: 0, lessonSetup: 0 }, data.rates || {});
       store.jobs = data.jobs || [];
+      
+      // 2. Если на телефоне уже выбран какой-то проект, обновляем и его тоже
+      if (store.currentJobId) {
+        const found = store.jobs.find(j => j.id == store.currentJobId);
+        if (found) store.currentJob = found;
+      }
     }
     
-    document.getElementById('db-status').innerText = "🟢 Данные синхронизированы с БД";
+    // 3. Вызываем функции отрисовки
+    if (typeof renderJobsSelect === 'function') renderJobsSelect();
+    if (typeof renderCurrentJob === 'function') renderCurrentJob(); // рендер текущей работы/уроков
+    if (typeof fillRatesInputs === 'function') fillRatesInputs();   // заполнение полей с расценками
     
-    if (!data || !data.rates) {
-      openRatesModal();
-    }
-    renderJobsSelect();
+    const statusEl = document.getElementById('db-status');
+    if (statusEl) statusEl.innerText = "🟢 Данные синхронизированы";
   }, (error) => {
-    document.getElementById('db-status').innerText = "🔴 Ошибка синхронизации БД";
-    console.error(error);
+    console.error("Ошибка Firebase:", error);
   });
 
   function saveData() {
@@ -295,6 +302,11 @@
       console.error(err);
     });
   }
+
+  // Делаем saveData и отрисовщики доступными глобально
+  window.saveDataToFirebase = saveData;
+  window.fillRatesInputs = openRatesModal;
+  window.renderCurrentJob = renderItems;
 
   function openRatesModal() {
     if (store.rates) {
