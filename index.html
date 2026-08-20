@@ -55,6 +55,7 @@
     .btn:hover { opacity: 0.9; }
     .btn-grad { background: var(--button-grad); }
     .btn-outline { background: transparent; border: 1px solid var(--accent-color); color: var(--accent-color); }
+    .btn-sm { padding: 6px 10px; font-size: 0.8rem; margin-top: 8px; width: auto; display: inline-block; }
     
     /* Компактная кнопка ведерка */
     .btn-trash {
@@ -190,7 +191,7 @@
   <div class="modal">
     <button class="modal-close btn-close-modal">&times;</button>
     <h2>Установка базовых расценок</h2>
-    <p style="font-size: 0.85rem; margin-bottom: 15px; color: #666;">Укажите стоимость одной единицы (в рублях). Настройки урока прибавляются автоматически к каждому уроку.</p>
+    <p style="font-size: 0.85rem; margin-bottom: 15px; color: #666;">Укажите стоимость одной единицы (в рублях). Фиксированные настройки прибавляются автоматически к каждому элементу.</p>
     <form id="rates-form">
       <div class="grid-2">
         <div class="form-group"><label>1 Подводка (текст)</label><input type="number" id="rate-lead" min="0" required></div>
@@ -199,9 +200,15 @@
         <div class="form-group"><label>1 PDF-документ</label><input type="number" id="rate-pdf" min="0" required></div>
         <div class="form-group"><label>1 Вопрос в мини-тесте</label><input type="number" id="rate-mini-q" min="0" required></div>
         <div class="form-group"><label>1 Вопрос в итоговом тесте</label><input type="number" id="rate-final-q" min="0" required></div>
+        
         <div class="form-group" style="grid-column: 1 / -1; background: var(--soft-purple); padding: 10px; border-radius: 6px;">
-          <label style="color: var(--deep-accent); font-weight: bold;">⚙️ Настройки урока (автоматически в каждый урок)</label>
+          <label style="color: var(--deep-accent); font-weight: bold;">⚙️ Настройки урока (автоматически к каждому уроку)</label>
           <input type="number" id="rate-lesson-setup" min="0" value="0" required>
+        </div>
+
+        <div class="form-group" style="grid-column: 1 / -1; background: var(--soft-purple); padding: 10px; border-radius: 6px;">
+          <label style="color: var(--deep-accent); font-weight: bold;">⚙️ Настройки итогового теста (автоматически к каждому тесту)</label>
+          <input type="number" id="rate-test-setup" min="0" value="0" required>
         </div>
       </div>
       <button type="submit" class="btn btn-grad btn-block-mobile" style="margin-top: 15px;">Сохранить расценки</button>
@@ -249,7 +256,7 @@
         <textarea id="l-comment" placeholder="Заметки по уроку..."></textarea>
       </div>
 
-      <button type="submit" class="btn btn-grad btn-block-mobile" style="margin-top: 15px;">Урок готов (Сохранить)</button>
+      <button type="submit" class="btn btn-grad btn-block-mobile" style="margin-top: 15px;">Сохранить урок</button>
       <button type="button" class="btn btn-outline btn-close-modal btn-block-mobile" style="margin-top: 5px;">Отмена</button>
     </form>
   </div>
@@ -305,18 +312,18 @@
   const db = getDatabase(app);
 
   let store = {
-    rates: { lead: 0, video: 0, slide: 0, pdf: 0, miniQ: 0, finalQ: 0, lessonSetup: 0 },
+    rates: { lead: 0, video: 0, slide: 0, pdf: 0, miniQ: 0, finalQ: 0, lessonSetup: 0, testSetup: 0 },
     jobs: [],
     activeJobId: null
   };
 
   const dataRef = ref(db, 'course_builder_data');
 
-  // Слушатель Firebase: Полный контроль состояния приложения напрямую из БД
+  // Слушатель Firebase
   onValue(dataRef, (snapshot) => {
     const data = snapshot.val();
     if (data) {
-      store.rates = Object.assign({ lead: 0, video: 0, slide: 0, pdf: 0, miniQ: 0, finalQ: 0, lessonSetup: 0 }, data.rates || {});
+      store.rates = Object.assign({ lead: 0, video: 0, slide: 0, pdf: 0, miniQ: 0, finalQ: 0, lessonSetup: 0, testSetup: 0 }, data.rates || {});
       store.jobs = data.jobs || [];
       store.activeJobId = data.activeJobId || null;
     }
@@ -331,7 +338,6 @@
     if (statusEl) statusEl.innerText = "🔴 Ошибка связи с БД";
   });
 
-  // Запись ВСЕХ данных напрямую в Firebase без использования localstorage
   function saveData() {
     document.getElementById('db-status').innerText = "⏳ Сохранение в БД...";
     set(dataRef, {
@@ -355,6 +361,7 @@
       document.getElementById('rate-mini-q').value = store.rates.miniQ || 0;
       document.getElementById('rate-final-q').value = store.rates.finalQ || 0;
       document.getElementById('rate-lesson-setup').value = store.rates.lessonSetup || 0;
+      document.getElementById('rate-test-setup').value = store.rates.testSetup || 0;
     }
     document.getElementById('rates-modal').classList.remove('hidden');
   }
@@ -424,6 +431,7 @@
       total += (r.lessonSetup || 0);
     } else if (item.type === 'test') {
       total += (item.questions || 0) * (r.finalQ || 0);
+      total += (r.testSetup || 0);
     }
 
     if (item.customPrice) {
@@ -459,23 +467,27 @@
       }
 
       const itemCost = calculateItemCost(item);
+      const isReady = item.isReady === true;
 
       box.innerHTML = `
         <div class="item-header">
           <div class="item-title">
             <span>Ступень ${item.stage} → Модуль ${item.module} → ${item.title}</span>
-            <span class="badge badge-success">${item.status}</span>
+            ${isReady ? `<span class="badge badge-success">Готов</span>` : ''}
           </div>
           <button class="btn-trash btn-delete" data-index="${index}" title="Удалить">🗑️</button>
         </div>
         <div style="font-size: 0.85rem; margin-top: 6px;">${detailsHtml}</div>
         
-        ${item.comment ? `<div class="comment-text">📌 <b>Заметка:</b> ${item.comment}</div>` : ''}
+        ${(!isReady && item.comment) ? `<div class="comment-text">📌 <b>Заметка:</b> ${item.comment}</div>` : ''}
 
-        <label class="checkbox-label">
-          <input type="checkbox" class="check-test" data-index="${index}" ${item.testChecked ? 'checked' : ''}>
-          <span>Тест проверен</span>
-        </label>
+        ${!isReady ? `
+          <label class="checkbox-label">
+            <input type="checkbox" class="check-test" data-index="${index}" ${item.testChecked ? 'checked' : ''}>
+            <span>Тест проверен</span>
+          </label>
+          <button class="btn btn-outline btn-sm btn-mark-ready" data-index="${index}">✓ Отметить готовым</button>
+        ` : ''}
 
         <div class="price-tag">Стоимость: ${itemCost.toLocaleString()} ₽</div>
       `;
@@ -486,6 +498,14 @@
       cb.onchange = (e) => {
         const idx = e.target.dataset.index;
         job.items[idx].testChecked = e.target.checked;
+        saveData();
+      };
+    });
+
+    document.querySelectorAll('.btn-mark-ready').forEach(btn => {
+      btn.onclick = (e) => {
+        const idx = e.target.dataset.index;
+        job.items[idx].isReady = true;
         saveData();
       };
     });
@@ -568,10 +588,17 @@
           calcDetails.push(`${item.miniQ} вопр. × ${rates.miniQ} ₽`);
         }
       } else if (item.type === 'test') {
-        let sum = item.questions * rates.finalQ;
-        itemTotal += sum;
-        composition.push(`Итоговый тест (${item.questions} вопр.)`);
-        calcDetails.push(`${item.questions} вопр. × ${rates.finalQ} ₽`);
+        if (rates.testSetup > 0) {
+          itemTotal += rates.testSetup;
+          composition.push(`⚙️ Настройка итогового теста`);
+          calcDetails.push(`Фикс: ${rates.testSetup} ₽`);
+        }
+        if (item.questions > 0) {
+          let sum = item.questions * rates.finalQ;
+          itemTotal += sum;
+          composition.push(`Итоговый тест (${item.questions} вопр.)`);
+          calcDetails.push(`${item.questions} вопр. × ${rates.finalQ} ₽`);
+        }
       }
 
       if (item.customDesc && item.customPrice > 0) {
@@ -632,6 +659,7 @@
       miniQ: parseFloat(document.getElementById('rate-mini-q').value) || 0,
       finalQ: parseFloat(document.getElementById('rate-final-q').value) || 0,
       lessonSetup: parseFloat(document.getElementById('rate-lesson-setup').value) || 0,
+      testSetup: parseFloat(document.getElementById('rate-test-setup').value) || 0,
     };
     saveData();
     closeModals();
@@ -655,7 +683,7 @@
       customPrice: parseFloat(document.getElementById('l-custom-price').value) || 0,
       comment: document.getElementById('l-comment').value.trim(),
       testChecked: false,
-      status: 'Готов'
+      isReady: false
     };
 
     if (!job.items) job.items = [];
@@ -679,7 +707,7 @@
       customPrice: parseFloat(document.getElementById('t-custom-price').value) || 0,
       comment: document.getElementById('t-comment').value.trim(),
       testChecked: false,
-      status: 'Готов'
+      isReady: false
     };
 
     if (!job.items) job.items = [];
