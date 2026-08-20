@@ -17,16 +17,34 @@
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
-    body { background-color: var(--soft-pink); color: var(--text-main); padding: 12px; }
+    body { background-color: var(--soft-pink); color: var(--text-main); padding: 12px; transition: all 0.3s ease; }
     
+    /* Переключатель мобильного/десктопного режима просмотра */
+    body.preview-mobile .container { max-width: 400px !important; margin: 0 auto; }
+    
+    .view-toggle-btn {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      z-index: 2000;
+      background: var(--deep-accent);
+      color: var(--white);
+      border: none;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+
     .container { max-width: 1000px; margin: 0 auto; }
     .card { background: var(--white); border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
     
     .header-card { display: flex; flex-direction: column; gap: 12px; }
     @media (min-width: 600px) {
-      body { padding: 20px; }
-      .card { padding: 20px; margin-bottom: 20px; }
-      .header-card { flex-direction: row; justify-content: space-between; align-items: center; }
+      body:not(.preview-mobile) { padding: 20px; }
+      body:not(.preview-mobile) .card { padding: 20px; margin-bottom: 20px; }
+      body:not(.preview-mobile) .header-card { flex-direction: row; justify-content: space-between; align-items: center; }
     }
 
     h1 { font-size: 1.4rem; color: var(--deep-accent); }
@@ -37,11 +55,33 @@
     .btn:hover { opacity: 0.9; }
     .btn-grad { background: var(--button-grad); }
     .btn-outline { background: transparent; border: 1px solid var(--accent-color); color: var(--accent-color); }
-    .btn-danger { background: #d63031; color: white; padding: 4px 8px; font-size: 0.8rem; border-radius: 4px; }
+    
+    /* Компактная кнопка ведерка */
+    .btn-trash {
+      background: rgba(214, 48, 49, 0.1);
+      color: #d63031;
+      border: 1px solid rgba(214, 48, 49, 0.2);
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: all 0.2s ease;
+      padding: 0;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .btn-trash:hover {
+      background: #d63031;
+      color: #ffffff;
+    }
     
     @media (min-width: 600px) {
-      .btn { width: auto; margin-right: 8px; margin-bottom: 0; }
-      .btn-block-mobile { width: 100%; }
+      body:not(.preview-mobile) .btn { width: auto; margin-right: 8px; margin-bottom: 0; }
+      body:not(.preview-mobile) .btn-block-mobile { width: 100%; }
     }
 
     .form-group { margin-bottom: 12px; }
@@ -53,8 +93,8 @@
     .grid-3 { display: grid; grid-template-columns: 1fr; gap: 10px; }
     
     @media (min-width: 600px) {
-      .grid-2 { grid-template-columns: 1fr 1fr; }
-      .grid-3 { grid-template-columns: repeat(3, 1fr); }
+      body:not(.preview-mobile) .grid-2 { grid-template-columns: 1fr 1fr; }
+      body:not(.preview-mobile) .grid-3 { grid-template-columns: repeat(3, 1fr); }
     }
     
     .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 10px; }
@@ -63,14 +103,15 @@
     
     .job-selector { display: flex; flex-direction: column; gap: 10px; }
     @media (min-width: 600px) {
-      .job-selector { flex-direction: row; align-items: center; }
-      .job-selector select { flex: 1; }
+      body:not(.preview-mobile) .job-selector { flex-direction: row; align-items: center; }
+      body:not(.preview-mobile) .job-selector select { flex: 1; }
     }
 
     .item-box { background: var(--soft-purple); border-left: 4px solid var(--accent-color); padding: 12px; margin-bottom: 12px; border-radius: 6px; position: relative; }
-    .item-title { font-weight: bold; color: var(--deep-accent); display: flex; flex-direction: column; gap: 4px; padding-right: 70px; }
+    .item-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px; }
+    .item-title { font-weight: bold; color: var(--deep-accent); display: flex; flex-direction: column; gap: 4px; flex: 1; }
     @media (min-width: 600px) {
-      .item-title { flex-direction: row; justify-content: space-between; align-items: center; }
+      body:not(.preview-mobile) .item-title { flex-direction: row; justify-content: space-between; align-items: center; }
     }
     
     .table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-top: 15px; }
@@ -93,17 +134,19 @@
     
     .actions-row { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
     @media (min-width: 600px) {
-      .actions-row { flex-direction: row; }
+      body:not(.preview-mobile) .actions-row { flex-direction: row; }
     }
   </style>
 </head>
 <body>
 
+<button class="view-toggle-btn" id="toggle-view">📱 / 💻 Вид</button>
+
 <div class="container">
   <div class="card header-card">
     <div>
       <h1>Конструктор счетов курсов</h1>
-      <span id="db-status">🔄 Подключение к БД...</span>
+      <span id="db-status">🔄 Синхронизация с БД...</span>
     </div>
     <button class="btn btn-outline" id="btn-rates-modal">⚙️ Настройка цен</button>
   </div>
@@ -264,35 +307,37 @@
   let store = {
     rates: { lead: 0, video: 0, slide: 0, pdf: 0, miniQ: 0, finalQ: 0, lessonSetup: 0 },
     jobs: [],
-    currentJobId: null
+    activeJobId: null
   };
 
   const dataRef = ref(db, 'course_builder_data');
 
-  // Чтение и автосинхронизация
+  // Слушатель Firebase: Полный контроль состояния приложения напрямую из БД
   onValue(dataRef, (snapshot) => {
     const data = snapshot.val();
     if (data) {
       store.rates = Object.assign({ lead: 0, video: 0, slide: 0, pdf: 0, miniQ: 0, finalQ: 0, lessonSetup: 0 }, data.rates || {});
       store.jobs = data.jobs || [];
+      store.activeJobId = data.activeJobId || null;
     }
     
     renderJobsSelect();
-    if (store.currentJobId) {
-      renderItems();
-    }
-    
+
     const statusEl = document.getElementById('db-status');
-    if (statusEl) statusEl.innerText = "🟢 Данные синхронизированы";
+    if (statusEl) statusEl.innerText = "🟢 Синхронизировано с БД";
   }, (error) => {
     console.error("Ошибка Firebase:", error);
+    const statusEl = document.getElementById('db-status');
+    if (statusEl) statusEl.innerText = "🔴 Ошибка связи с БД";
   });
 
+  // Запись ВСЕХ данных напрямую в Firebase без использования localstorage
   function saveData() {
-    document.getElementById('db-status').innerText = "⏳ Сохранение...";
+    document.getElementById('db-status').innerText = "⏳ Сохранение в БД...";
     set(dataRef, {
       rates: store.rates,
-      jobs: store.jobs
+      jobs: store.jobs,
+      activeJobId: store.activeJobId
     }).then(() => {
       document.getElementById('db-status').innerText = "🟢 Сохранено в БД";
     }).catch((err) => {
@@ -300,10 +345,6 @@
       console.error(err);
     });
   }
-
-  window.saveDataToFirebase = saveData;
-  window.fillRatesInputs = openRatesModal;
-  window.renderCurrentJob = renderItems;
 
   function openRatesModal() {
     if (store.rates) {
@@ -327,40 +368,47 @@
     if (!title) return;
     const newJob = { id: Date.now(), title: title, items: [] };
     store.jobs.push(newJob);
-    store.currentJobId = newJob.id;
+    store.activeJobId = newJob.id;
     saveData();
-    renderJobsSelect();
   }
 
   function renderJobsSelect() {
     const select = document.getElementById('job-select');
     select.innerHTML = '<option value="">-- Выберите должность --</option>';
+    
+    let exists = false;
     store.jobs.forEach(j => {
       const opt = document.createElement('option');
       opt.value = j.id;
       opt.innerText = j.title;
-      if (j.id === store.currentJobId) opt.selected = true;
+      if (j.id === store.activeJobId) {
+        opt.selected = true;
+        exists = true;
+      }
       select.appendChild(opt);
     });
-    switchJob();
+
+    if (!exists && store.jobs.length > 0) {
+      store.activeJobId = store.jobs[0].id;
+      select.value = store.activeJobId;
+    }
+
+    switchJobUI();
   }
 
-  function switchJob() {
-    const val = document.getElementById('job-select').value;
-    store.currentJobId = val ? parseInt(val) : null;
+  function switchJobUI() {
     const content = document.getElementById('job-content');
     
-    if (store.currentJobId) {
-      const job = store.jobs.find(j => j.id === store.currentJobId);
+    if (store.activeJobId) {
+      const job = store.jobs.find(j => j.id === store.activeJobId);
       if (job) {
         document.getElementById('current-job-title').innerText = job.title;
         content.classList.remove('hidden');
-        document.getElementById('invoice-card').classList.add('hidden');
         renderItems();
+        return;
       }
-    } else {
-      content.classList.add('hidden');
     }
+    content.classList.add('hidden');
   }
 
   function calculateItemCost(item) {
@@ -388,7 +436,7 @@
   function renderItems() {
     const list = document.getElementById('items-list');
     list.innerHTML = '';
-    const job = store.jobs.find(j => j.id === store.currentJobId);
+    const job = store.jobs.find(j => j.id === store.activeJobId);
 
     if (!job || !job.items || job.items.length === 0) {
       list.innerHTML = '<p style="color: #888;">В этой должности пока нет добавленных уроков и тестов.</p>';
@@ -413,10 +461,12 @@
       const itemCost = calculateItemCost(item);
 
       box.innerHTML = `
-        <button class="btn btn-danger btn-delete" data-index="${index}" style="position: absolute; top: 10px; right: 10px;">🗑️ Удалить</button>
-        <div class="item-title">
-          <span>Ступень ${item.stage} → Модуль ${item.module} → ${item.title}</span>
-          <span class="badge badge-success">${item.status}</span>
+        <div class="item-header">
+          <div class="item-title">
+            <span>Ступень ${item.stage} → Модуль ${item.module} → ${item.title}</span>
+            <span class="badge badge-success">${item.status}</span>
+          </div>
+          <button class="btn-trash btn-delete" data-index="${index}" title="Удалить">🗑️</button>
         </div>
         <div style="font-size: 0.85rem; margin-top: 6px;">${detailsHtml}</div>
         
@@ -446,14 +496,13 @@
           const idx = e.target.dataset.index;
           job.items.splice(idx, 1);
           saveData();
-          renderItems();
         }
       };
     });
   }
 
   function generateInvoice() {
-    const job = store.jobs.find(j => j.id === store.currentJobId);
+    const job = store.jobs.find(j => j.id === store.activeJobId);
     if (!job || !job.items || job.items.length === 0) {
       alert("Сначала добавьте хотя бы один урок или тест!");
       return;
@@ -560,7 +609,13 @@
 
   document.getElementById('btn-rates-modal').onclick = openRatesModal;
   document.getElementById('btn-add-job').onclick = addNewJob;
-  document.getElementById('job-select').onchange = switchJob;
+  
+  document.getElementById('job-select').onchange = (e) => {
+    const val = e.target.value;
+    store.activeJobId = val ? parseInt(val) : null;
+    saveData();
+  };
+
   document.getElementById('btn-open-lesson').onclick = () => document.getElementById('lesson-modal').classList.remove('hidden');
   document.getElementById('btn-open-test').onclick = () => document.getElementById('test-modal').classList.remove('hidden');
   document.getElementById('btn-generate-invoice').onclick = generateInvoice;
@@ -580,12 +635,11 @@
     };
     saveData();
     closeModals();
-    if (store.currentJobId) renderItems();
   };
 
   document.getElementById('lesson-form').onsubmit = (e) => {
     e.preventDefault();
-    const job = store.jobs.find(j => j.id === store.currentJobId);
+    const job = store.jobs.find(j => j.id === store.activeJobId);
     
     const lesson = {
       type: 'lesson',
@@ -609,12 +663,11 @@
     saveData();
     closeModals();
     e.target.reset();
-    renderItems();
   };
 
   document.getElementById('test-form').onsubmit = (e) => {
     e.preventDefault();
-    const job = store.jobs.find(j => j.id === store.currentJobId);
+    const job = store.jobs.find(j => j.id === store.activeJobId);
 
     const test = {
       type: 'test',
@@ -634,7 +687,10 @@
     saveData();
     closeModals();
     e.target.reset();
-    renderItems();
+  };
+
+  document.getElementById('toggle-view').onclick = () => {
+    document.body.classList.toggle('preview-mobile');
   };
 </script>
 
