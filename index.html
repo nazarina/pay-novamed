@@ -37,6 +37,7 @@
     .btn:hover { opacity: 0.9; }
     .btn-grad { background: var(--button-grad); }
     .btn-outline { background: transparent; border: 1px solid var(--accent-color); color: var(--accent-color); }
+    .btn-danger { background: #d63031; color: white; padding: 4px 8px; font-size: 0.8rem; border-radius: 4px; }
     
     @media (min-width: 600px) {
       .btn { width: auto; margin-right: 8px; margin-bottom: 0; }
@@ -57,7 +58,8 @@
     }
     
     .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 10px; }
-    .modal { background: var(--white); padding: 20px; border-radius: 12px; max-width: 600px; width: 100%; max-height: 90vh; overflow-y: auto; }
+    .modal { background: var(--white); padding: 20px; border-radius: 12px; max-width: 600px; width: 100%; max-height: 90vh; overflow-y: auto; position: relative; }
+    .modal-close { position: absolute; top: 12px; right: 16px; font-size: 1.5rem; background: none; border: none; cursor: pointer; color: var(--text-main); font-weight: bold; }
     
     .job-selector { display: flex; flex-direction: column; gap: 10px; }
     @media (min-width: 600px) {
@@ -65,8 +67,8 @@
       .job-selector select { flex: 1; }
     }
 
-    .item-box { background: var(--soft-purple); border-left: 4px solid var(--accent-color); padding: 12px; margin-bottom: 12px; border-radius: 6px; }
-    .item-title { font-weight: bold; color: var(--deep-accent); display: flex; flex-direction: column; gap: 4px; }
+    .item-box { background: var(--soft-purple); border-left: 4px solid var(--accent-color); padding: 12px; margin-bottom: 12px; border-radius: 6px; position: relative; }
+    .item-title { font-weight: bold; color: var(--deep-accent); display: flex; flex-direction: column; gap: 4px; padding-right: 70px; }
     @media (min-width: 600px) {
       .item-title { flex-direction: row; justify-content: space-between; align-items: center; }
     }
@@ -143,6 +145,7 @@
 <!-- Модалка цен -->
 <div id="rates-modal" class="modal-overlay hidden">
   <div class="modal">
+    <button class="modal-close btn-close-modal">&times;</button>
     <h2>Установка базовых расценок</h2>
     <p style="font-size: 0.85rem; margin-bottom: 15px; color: #666;">Укажите стоимость одной единицы (в рублях). Настройки урока прибавляются автоматически к каждому уроку.</p>
     <form id="rates-form">
@@ -166,6 +169,7 @@
 <!-- Модалка добавления урока -->
 <div id="lesson-modal" class="modal-overlay hidden">
   <div class="modal">
+    <button class="modal-close btn-close-modal">&times;</button>
     <h2>Добавление урока</h2>
     <form id="lesson-form">
       <div class="grid-3">
@@ -211,6 +215,7 @@
 <!-- Модалка добавления итогового теста -->
 <div id="test-modal" class="modal-overlay hidden">
   <div class="modal">
+    <button class="modal-close btn-close-modal">&times;</button>
     <h2>Добавление итогового теста</h2>
     <form id="test-form">
       <div class="grid-2">
@@ -268,21 +273,14 @@
   onValue(dataRef, (snapshot) => {
     const data = snapshot.val();
     if (data) {
-      // 1. Обновляем локальный объект данными из базы
       store.rates = Object.assign({ lead: 0, video: 0, slide: 0, pdf: 0, miniQ: 0, finalQ: 0, lessonSetup: 0 }, data.rates || {});
       store.jobs = data.jobs || [];
-      
-      // 2. Если на телефоне уже выбран какой-то проект, обновляем и его тоже
-      if (store.currentJobId) {
-        const found = store.jobs.find(j => j.id == store.currentJobId);
-        if (found) store.currentJob = found;
-      }
     }
     
-    // 3. Вызываем функции отрисовки
-    if (typeof renderJobsSelect === 'function') renderJobsSelect();
-    if (typeof renderCurrentJob === 'function') renderCurrentJob(); // рендер текущей работы/уроков
-    if (typeof fillRatesInputs === 'function') fillRatesInputs();   // заполнение полей с расценками
+    renderJobsSelect();
+    if (store.currentJobId) {
+      renderItems();
+    }
     
     const statusEl = document.getElementById('db-status');
     if (statusEl) statusEl.innerText = "🟢 Данные синхронизированы";
@@ -303,7 +301,6 @@
     });
   }
 
-  // Делаем saveData и отрисовщики доступными глобально
   window.saveDataToFirebase = saveData;
   window.fillRatesInputs = openRatesModal;
   window.renderCurrentJob = renderItems;
@@ -376,7 +373,7 @@
       total += (item.slides || 0) * (r.slide || 0);
       total += (item.pdfs || 0) * (r.pdf || 0);
       total += (item.miniQ || 0) * (r.miniQ || 0);
-      total += (r.lessonSetup || 0); // Автоматическое добавление стоимости настройки урока
+      total += (r.lessonSetup || 0);
     } else if (item.type === 'test') {
       total += (item.questions || 0) * (r.finalQ || 0);
     }
@@ -416,6 +413,7 @@
       const itemCost = calculateItemCost(item);
 
       box.innerHTML = `
+        <button class="btn btn-danger btn-delete" data-index="${index}" style="position: absolute; top: 10px; right: 10px;">🗑️ Удалить</button>
         <div class="item-title">
           <span>Ступень ${item.stage} → Модуль ${item.module} → ${item.title}</span>
           <span class="badge badge-success">${item.status}</span>
@@ -434,12 +432,22 @@
       list.appendChild(box);
     });
 
-    // Обработка клика по чекбоксу "Тест проверен"
     document.querySelectorAll('.check-test').forEach(cb => {
       cb.onchange = (e) => {
         const idx = e.target.dataset.index;
         job.items[idx].testChecked = e.target.checked;
         saveData();
+      };
+    });
+
+    document.querySelectorAll('.btn-delete').forEach(btn => {
+      btn.onclick = (e) => {
+        if (confirm("Удалить этот элемент?")) {
+          const idx = e.target.dataset.index;
+          job.items.splice(idx, 1);
+          saveData();
+          renderItems();
+        }
       };
     });
   }
@@ -477,55 +485,54 @@
       if (item.type === 'lesson') {
         if (rates.lessonSetup > 0) {
           itemTotal += rates.lessonSetup;
-          composition.push(`⚙️ Настройки урока`);
+          composition.push(`⚙️ Настройка урока`);
           calcDetails.push(`Фикс: ${rates.lessonSetup} ₽`);
         }
         if (item.leads > 0) {
           let sum = item.leads * rates.lead;
           itemTotal += sum;
           composition.push(`Подводки: ${item.leads}`);
-          calcDetails.push(`${item.leads} × ${rates.lead}`);
+          calcDetails.push(`${item.leads} × ${rates.lead} ₽`);
         }
         if (item.videos > 0) {
           let sum = item.videos * rates.video;
           itemTotal += sum;
           composition.push(`Видео: ${item.videos}`);
-          calcDetails.push(`${item.videos} × ${rates.video}`);
+          calcDetails.push(`${item.videos} × ${rates.video} ₽`);
         }
         if (item.slides > 0) {
           let sum = item.slides * rates.slide;
           itemTotal += sum;
           composition.push(`Слайды: ${item.slides}`);
-          calcDetails.push(`${item.slides} × ${rates.slide}`);
+          calcDetails.push(`${item.slides} × ${rates.slide} ₽`);
         }
         if (item.pdfs > 0) {
           let sum = item.pdfs * rates.pdf;
           itemTotal += sum;
           composition.push(`PDF: ${item.pdfs}`);
-          calcDetails.push(`${item.pdfs} × ${rates.pdf}`);
+          calcDetails.push(`${item.pdfs} × ${rates.pdf} ₽`);
         }
         if (item.miniQ > 0) {
           let sum = item.miniQ * rates.miniQ;
           itemTotal += sum;
           composition.push(`Мини-тест (${item.miniQ} вопр.)`);
-          calcDetails.push(`${item.miniQ} вопр. × ${rates.miniQ}`);
+          calcDetails.push(`${item.miniQ} вопр. × ${rates.miniQ} ₽`);
         }
       } else if (item.type === 'test') {
         let sum = item.questions * rates.finalQ;
         itemTotal += sum;
         composition.push(`Итоговый тест (${item.questions} вопр.)`);
-        calcDetails.push(`${item.questions} вопр. × ${rates.finalQ}`);
+        calcDetails.push(`${item.questions} вопр. × ${rates.finalQ} ₽`);
       }
 
       if (item.customDesc && item.customPrice > 0) {
         itemTotal += item.customPrice;
         composition.push(`Спец. задача: ${item.customDesc}`);
-        calcDetails.push(`Фикс: ${item.customPrice}`);
+        calcDetails.push(`Фикс: ${item.customPrice} ₽`);
       }
 
       grandTotal += itemTotal;
 
-      // Примечание: комментарий и чекбокс не попадают в итоговый счет
       html += `
         <tr>
           <td>Ступень ${item.stage}, Модуль ${item.module}<br><b>${item.title}</b></td>
@@ -551,7 +558,6 @@
     document.getElementById('invoice-card').scrollIntoView({ behavior: 'smooth' });
   }
 
-  // Привязка кнопок
   document.getElementById('btn-rates-modal').onclick = openRatesModal;
   document.getElementById('btn-add-job').onclick = addNewJob;
   document.getElementById('job-select').onchange = switchJob;
