@@ -48,7 +48,6 @@
     .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.95rem; }
     .form-group textarea { resize: vertical; min-height: 60px; }
     
-    .grid-1 { display: grid; grid-template-columns: 1fr; gap: 10px; }
     .grid-2 { display: grid; grid-template-columns: 1fr; gap: 10px; }
     .grid-3 { display: grid; grid-template-columns: 1fr; gap: 10px; }
     
@@ -83,7 +82,11 @@
     .badge-success { background: #d4edda; color: #155724; }
     
     .price-tag { font-size: 1.05rem; font-weight: bold; color: var(--deep-accent); margin-top: 6px; }
-    .comment-text { font-style: italic; color: #555; background: rgba(255,255,255,0.6); padding: 6px; border-radius: 4px; margin-top: 6px; font-size: 0.85rem; border: 1px dashed #ccc; }
+    .comment-text { font-style: italic; color: #555; background: rgba(255,255,255,0.7); padding: 6px 10px; border-radius: 4px; margin-top: 6px; font-size: 0.85rem; border-left: 3px solid var(--deep-accent); }
+    
+    .checkbox-label { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; color: var(--accent-color); }
+    .checkbox-label input { width: 16px; height: 16px; cursor: pointer; }
+
     #db-status { font-size: 0.8rem; color: var(--accent-color); font-weight: bold; display: block; margin-top: 4px; }
     
     .actions-row { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
@@ -141,7 +144,7 @@
 <div id="rates-modal" class="modal-overlay hidden">
   <div class="modal">
     <h2>Установка базовых расценок</h2>
-    <p style="font-size: 0.85rem; margin-bottom: 15px; color: #666;">Укажите стоимость одной единицы (в рублях). Настройки урока прибавятся автоматически к каждому уроку.</p>
+    <p style="font-size: 0.85rem; margin-bottom: 15px; color: #666;">Укажите стоимость одной единицы (в рублях). Настройки урока прибавляются автоматически к каждому уроку.</p>
     <form id="rates-form">
       <div class="grid-2">
         <div class="form-group"><label>1 Подводка (текст)</label><input type="number" id="rate-lead" min="0" required></div>
@@ -151,7 +154,7 @@
         <div class="form-group"><label>1 Вопрос в мини-тесте</label><input type="number" id="rate-mini-q" min="0" required></div>
         <div class="form-group"><label>1 Вопрос в итоговом тесте</label><input type="number" id="rate-final-q" min="0" required></div>
         <div class="form-group" style="grid-column: 1 / -1; background: var(--soft-purple); padding: 10px; border-radius: 6px;">
-          <label style="color: var(--deep-accent); font-weight: bold;">⚙️ Настройки урока (фикс. сумма для ВСЕХ уроков)</label>
+          <label style="color: var(--deep-accent); font-weight: bold;">⚙️ Настройки урока (автоматически в каждый урок)</label>
           <input type="number" id="rate-lesson-setup" min="0" value="0" required>
         </div>
       </div>
@@ -195,8 +198,8 @@
 
       <hr style="margin: 15px 0; border: none; border-top: 1px solid #eee;">
       <div class="form-group">
-        <label>Комментарий к уроку</label>
-        <textarea id="l-comment" placeholder="Дополнительные заметки или особенности урока..."></textarea>
+        <label>Комментарий (для себя, в счет не идет)</label>
+        <textarea id="l-comment" placeholder="Заметки по уроку..."></textarea>
       </div>
 
       <button type="submit" class="btn btn-grad btn-block-mobile" style="margin-top: 15px;">Урок готов (Сохранить)</button>
@@ -224,6 +227,12 @@
         <div class="form-group"><label>Стоимость (руб)</label><input type="number" id="t-custom-price" value="0" min="0"></div>
       </div>
 
+      <hr style="margin: 15px 0; border: none; border-top: 1px solid #eee;">
+      <div class="form-group">
+        <label>Комментарий (для себя, в счет не идет)</label>
+        <textarea id="t-comment" placeholder="Заметки по тесту..."></textarea>
+      </div>
+
       <button type="submit" class="btn btn-grad btn-block-mobile" style="margin-top: 15px;">Сохранить тест</button>
       <button type="button" class="btn btn-outline btn-close-modal btn-block-mobile" style="margin-top: 5px;">Отмена</button>
     </form>
@@ -231,8 +240,8 @@
 </div>
 
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
-  import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-database.js";
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAW9W3M4p5yHxfwN4lhOot3YWxFoPKciEA",
@@ -248,15 +257,14 @@
   const db = getDatabase(app);
 
   let store = {
-    rates: {
-      lead: 0, video: 0, slide: 0, pdf: 0, miniQ: 0, finalQ: 0, lessonSetup: 0
-    },
+    rates: { lead: 0, video: 0, slide: 0, pdf: 0, miniQ: 0, finalQ: 0, lessonSetup: 0 },
     jobs: [],
     currentJobId: null
   };
 
   const dataRef = ref(db, 'course_builder_data');
 
+  // Чтение и автосинхронизация
   onValue(dataRef, (snapshot) => {
     const data = snapshot.val();
     if (data) {
@@ -264,14 +272,14 @@
       store.jobs = data.jobs || [];
     }
     
-    document.getElementById('db-status').innerText = "🟢 Синхронизировано с БД";
+    document.getElementById('db-status').innerText = "🟢 Данные синхронизированы с БД";
     
     if (!data || !data.rates) {
       openRatesModal();
     }
     renderJobsSelect();
   }, (error) => {
-    document.getElementById('db-status').innerText = "🔴 Ошибка БД";
+    document.getElementById('db-status').innerText = "🔴 Ошибка синхронизации БД";
     console.error(error);
   });
 
@@ -356,7 +364,7 @@
       total += (item.slides || 0) * (r.slide || 0);
       total += (item.pdfs || 0) * (r.pdf || 0);
       total += (item.miniQ || 0) * (r.miniQ || 0);
-      total += (r.lessonSetup || 0); // Автоматическая надбавка за настройки урока
+      total += (r.lessonSetup || 0); // Автоматическое добавление стоимости настройки урока
     } else if (item.type === 'test') {
       total += (item.questions || 0) * (r.finalQ || 0);
     }
@@ -378,15 +386,13 @@
       return;
     }
 
-    job.items.forEach((item) => {
+    job.items.forEach((item, index) => {
       const box = document.createElement('div');
       box.className = 'item-box';
       
       let detailsHtml = '';
       if (item.type === 'lesson') {
-        detailsHtml = `
-          Подводки: ${item.leads} | Видео: ${item.videos} | Слайды: ${item.slides} | PDF: ${item.pdfs} | Мини-тест: ${item.miniQ} вопр.
-        `;
+        detailsHtml = `Подводки: ${item.leads} | Видео: ${item.videos} | Слайды: ${item.slides} | PDF: ${item.pdfs} | Мини-тест: ${item.miniQ} вопр.`;
       } else {
         detailsHtml = `Итоговый тест: ${item.questions} вопр.`;
       }
@@ -403,10 +409,26 @@
           <span class="badge badge-success">${item.status}</span>
         </div>
         <div style="font-size: 0.85rem; margin-top: 6px;">${detailsHtml}</div>
-        ${item.comment ? `<div class="comment-text">💬 <b>Комментарий:</b> ${item.comment}</div>` : ''}
+        
+        ${item.comment ? `<div class="comment-text">📌 <b>Заметка:</b> ${item.comment}</div>` : ''}
+
+        <label class="checkbox-label">
+          <input type="checkbox" class="check-test" data-index="${index}" ${item.testChecked ? 'checked' : ''}>
+          <span>Тест проверен</span>
+        </label>
+
         <div class="price-tag">Стоимость: ${itemCost.toLocaleString()} ₽</div>
       `;
       list.appendChild(box);
+    });
+
+    // Обработка клика по чекбоксу "Тест проверен"
+    document.querySelectorAll('.check-test').forEach(cb => {
+      cb.onchange = (e) => {
+        const idx = e.target.dataset.index;
+        job.items[idx].testChecked = e.target.checked;
+        saveData();
+      };
     });
   }
 
@@ -441,7 +463,6 @@
       let calcDetails = [];
 
       if (item.type === 'lesson') {
-        // Автоматический пункт: настройки урока
         if (rates.lessonSetup > 0) {
           itemTotal += rates.lessonSetup;
           composition.push(`⚙️ Настройки урока`);
@@ -492,12 +513,10 @@
 
       grandTotal += itemTotal;
 
+      // Примечание: комментарий и чекбокс не попадают в итоговый счет
       html += `
         <tr>
-          <td>
-            Ступень ${item.stage}, Модуль ${item.module}<br><b>${item.title}</b>
-            ${item.comment ? `<br><small style="color:#666;">💬 ${item.comment}</small>` : ''}
-          </td>
+          <td>Ступень ${item.stage}, Модуль ${item.module}<br><b>${item.title}</b></td>
           <td>${composition.join('<br>')}</td>
           <td>${calcDetails.join('<br>')}</td>
           <td><b>${itemTotal.toLocaleString()} ₽</b></td>
@@ -520,7 +539,7 @@
     document.getElementById('invoice-card').scrollIntoView({ behavior: 'smooth' });
   }
 
-  // Привязка событий
+  // Привязка кнопок
   document.getElementById('btn-rates-modal').onclick = openRatesModal;
   document.getElementById('btn-add-job').onclick = addNewJob;
   document.getElementById('job-select').onchange = switchJob;
@@ -563,6 +582,7 @@
       customDesc: document.getElementById('l-custom-desc').value.trim(),
       customPrice: parseFloat(document.getElementById('l-custom-price').value) || 0,
       comment: document.getElementById('l-comment').value.trim(),
+      testChecked: false,
       status: 'Готов'
     };
 
@@ -586,6 +606,8 @@
       questions: parseInt(document.getElementById('t-questions').value) || 0,
       customDesc: document.getElementById('t-custom-desc').value.trim(),
       customPrice: parseFloat(document.getElementById('t-custom-price').value) || 0,
+      comment: document.getElementById('t-comment').value.trim(),
+      testChecked: false,
       status: 'Готов'
     };
 
